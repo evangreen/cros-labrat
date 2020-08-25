@@ -1,0 +1,12 @@
+{
+        "machines": [
+                {
+                        "ip": "10.0.6.158",
+                        "name": "hector"
+                },
+                {
+                        "name": "cranston",
+                        "ip": "fe80::2e0:4cff:fe68:237%enxa0cec8c454a3"
+                }
+        ]
+}
