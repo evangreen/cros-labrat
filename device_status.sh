@@ -32,9 +32,8 @@ for arg in "$@"; do
   esac
 done
 
-FW_VERSION="$(do_ssh "${REMOTE}" crossystem fwid)"
-OS_VERSION="$(do_ssh "${REMOTE}" \
- "sed -n 's/CHROMEOS_RELEASE_BUILDER_PATH=\(.*\)/\1/p' /etc/lsb-release")"
+FW_VERSION="$(detect_fw_version)"
+OS_VERSION="$(detect_os_version)"
 
 printf "Remote: %s\n" "${REMOTE}"
 printf "\tOS: %s\n" "${OS_VERSION}"

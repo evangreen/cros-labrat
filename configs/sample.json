@@ -1,4 +1,5 @@
 {
+        "gs_bucket": "gs://find-your-own-bucket/labrat",
         "machines": [
                 {
                         "ip": "10.0.6.158",
