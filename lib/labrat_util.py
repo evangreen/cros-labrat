@@ -7,6 +7,7 @@ import os
 import shlex
 import sys
 import time
+import zipfile
 
 def lock_file(path, pid):
   if pid is None:
@@ -187,6 +188,76 @@ def create_metadata(results_dir, output_path):
 
   return
 
+empty_index = {
+  "version": 1,
+  "files": [],
+  "results": []
+}
+
+def print_index_files(index_path):
+  index = empty_index
+  if index_path is None or index_path == "":
+    return 0
+
+  with open(index_path, 'r') as f:
+    index = json.load(f)
+
+  for f in index['files']:
+    print(f)
+
+  return 0
+
+copy_keys = ["user", "board", "hwid", "variant",
+             "os", "fw", "command", "remote",
+             "starttime", "endtime"]
+
+def add_result_to_index(index, path):
+  try:
+    metadata = {}
+    with zipfile.ZipFile(path, 'r') as z:
+      for member in z.namelist():
+        if member.endswith('labrat.json'):
+          with z.open(member) as f:
+            metadata = json.load(f)
+
+          break
+
+    new_results = []
+    for r in metadata["tests"]:
+      for key in copy_keys:
+        r[key] = metadata[key]
+
+      new_results.append(r)
+
+    index['files'].append(os.path.basename(path))
+    index['results'] += new_results
+
+  except Exception as e:
+    print("Got exception with file %s: %s" % (path, e))
+
+  return
+
+def build_new_index(old_path, list_path, out_path, results_dir):
+  index = empty_index
+  if old_path is not None and old_path != "":
+    with open(old_path, 'r') as f:
+      index = json.load(f)
+
+  with open(list_path, 'r') as f:
+    for line in f:
+      if results_dir is not None:
+        path = "%s/%s" % (results_dir, line.strip())
+
+      else:
+        path = line.strip()
+
+      add_result_to_index(index, path)
+
+  with open(out_path, 'w') as f:
+    json.dump(index, f, indent=1)
+
+  return 0
+
 class LabratUtilityLibrary:
   def __init__(self):
     parser = argparse.ArgumentParser(
@@ -200,6 +271,8 @@ Commands are:
   get-dut-count -- Returns the number of machines in the config.
   get-dut-sh -- Returns shell code describing attributes of a machine.
   create-metadata -- Create a labrat test result summary.
+  list-index-files -- Show the files covered by an index.
+  build-index -- Build a new index file.
 ''')
     parser.add_argument("command", help="The subcommand to run")
     args = parser.parse_args(sys.argv[1:2])
@@ -263,6 +336,34 @@ Commands are:
     parser.add_argument("output", help="Output path for the resulting json file.")
     args = parser.parse_args(sys.argv[2:])
     return create_metadata(args.results, args.output)
+
+  def list_index_files(self):
+    parser = argparse.ArgumentParser(
+      description='List all the result files covered by a given index')
+
+    parser.add_argument("index_file", help="Path to the index file")
+    args = parser.parse_args(sys.argv[2:])
+    return print_index_files(args.index_file)
+
+  def build_index(self):
+    parser = argparse.ArgumentParser(
+      description='Build a new index file by reading results')
+
+    parser.add_argument("existing_index",
+                        help="Path to an existing index to start with")
+
+    parser.add_argument("file_list",
+        help="Path to a file containing the set of results to index")
+
+    parser.add_argument("output", help="Output path to create")
+    parser.add_argument("--results-dir",
+                        help="Path to prefix to each element in the file list")
+
+    args = parser.parse_args(sys.argv[2:])
+    return build_new_index(args.existing_index,
+                           args.file_list,
+                           args.output,
+                           args.results_dir)
 
 if __name__ == '__main__':
     LabratUtilityLibrary()

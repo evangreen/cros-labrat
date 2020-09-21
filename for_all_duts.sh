@@ -11,7 +11,8 @@ _labrat_top="$(dirname "$0")"
 
 USAGE="$0 [options] <command> <args>
 Run a labrat command for each DUT specified in the config. This script will
-pass --remote=<REMOTE> to the specified command for each DUT.
+pass --remote=<REMOTE> to the specified command for each DUT. This script is
+meant to be combined with other scripts in the directory.
 Options are:
   --config=path_or_name -- Specify either absolute path to the .json config
     containing the DUTs to run on, or just the name, in which case it will be
@@ -20,10 +21,10 @@ Options are:
   --remote=111.222.33.44 -- Manually specify a remote to run on. Can be
     specified more than once. If specified, no config is used.
 
-Example: ./for_all_duts.sh --config=sample ./update_firmware.sh
+For example, to run the update_firmware.sh script on all DUTs
+specified in configs/sample.json:
 
-Runs the update_firmware.sh script on all DUTs specified in
-configs/sample.json.
+./for_all_duts.sh --config=sample ./update_firmware.sh
 "
 
 while [ "$#" -gt 0 ]; do

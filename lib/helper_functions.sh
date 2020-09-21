@@ -9,6 +9,7 @@ PS4='+($LINENO) '
 : "${LABRAT_FIRMWARE_CACHE:=$LABRAT_ROOT/firmware}"
 : "${LABRAT_IMAGE_CACHE:=$LABRAT_ROOT/images}"
 : "${LABRAT_RESULTS_CACHE:=$LABRAT_ROOT/results}"
+: "${LABRAT_INDEX_CACHE:=$LABRAT_ROOT/index}"
 
 if [ ! -d "${_labrat_top}" ]; then
   echo "Error: _labrat_top should be set"
@@ -241,7 +242,7 @@ get_dut_config () {
 # Who is this person running the test.
 whoisme () {
   [ -z "${LABRAT_TEST_USER}" ] &&
-    LABRAT_TEST_USER="$(git config --global user.email || whoami)"
+    export LABRAT_TEST_USER="$(git config --global user.email || whoami)"
 
   if [ "${LABRAT_TEST_USER}" = "root" -o \
        "${LABRAT_TEST_USER}" = "ubuntu" -o \
@@ -284,20 +285,20 @@ start_test () {
 
   shift
   whoisme
-  LABRAT_TEST_REMOTE="${remote}"
-  LABRAT_TEST_COMMAND="$*"
-  LABRAT_TEST_BOARD="$(detect_board ${remote})"
-  LABRAT_TEST_VARIANT="$(detect_variant ${remote})"
-  LABRAT_TEST_OS="$(detect_os_version ${remote})"
-  LABRAT_TEST_FW="$(detect_fw_version ${remote})"
-  LABRAT_TEST_HWID="$(detect_hardware_id ${remote})"
-  LABRAT_TEST_STARTTIME="$(get_timestamp)"
-  LABRAT_TEST_ENDTIME=
+  export LABRAT_TEST_REMOTE="${remote}"
+  export LABRAT_TEST_COMMAND="$*"
+  export LABRAT_TEST_BOARD="$(detect_board ${remote})"
+  export LABRAT_TEST_VARIANT="$(detect_variant ${remote})"
+  export LABRAT_TEST_OS="$(detect_os_version ${remote})"
+  export LABRAT_TEST_FW="$(detect_fw_version ${remote})"
+  export LABRAT_TEST_HWID="$(detect_hardware_id ${remote})"
+  export LABRAT_TEST_STARTTIME="$(get_timestamp)"
+  export LABRAT_TEST_ENDTIME=
 }
 
 # Finish collecting metadata.
 end_test () {
-  LABRAT_TEST_ENDTIME="$(get_timestamp)"
+  export LABRAT_TEST_ENDTIME="$(get_timestamp)"
 }
 
 # Run test_that, teeing the output to a file.
@@ -409,4 +410,98 @@ sweep_tast_results() {
 
   create_tast_run_metadata "${results_dir}"
   archive_results "${results_dir}"
+}
+
+# Print the latest results file in the bucket.
+get_latest_index() {
+  local bucket="$(get_gs_bucket)"
+
+  gsutil ls "${bucket}/index/*" | sort | tail -n1
+}
+
+# Downloads the latest index. Sets LABRAT_INDEX_BEFORE
+# to the local path of the latest index on the server.
+download_latest_index() {
+  local latest_index="$(get_latest_index || true)"
+  local latest_filename
+  local latest_filepath
+
+  LABRAT_INDEX_BEFORE=
+  echo "LABRAT_INDEX_CACHE=$LABRAT_INDEX_CACHE"
+  mkdir -p "${LABRAT_INDEX_CACHE}"
+  [ -z "${latest_index}" ] && return
+  latest_filename="$(basename "${latest_index}")"
+  latest_filepath="${LABRAT_INDEX_CACHE}/${latest_filename}"
+  if [ -f "${latest_filepath}" ]; then
+    LABRAT_INDEX_BEFORE="${latest_filepath}"
+    echo "Skipping download of ${latest_filepath}, already got it."
+    return 0
+  fi
+
+  gsutil cp "${latest_index}" "${latest_filepath}"
+  LABRAT_INDEX_BEFORE="${latest_filepath}"
+}
+
+# Download yet-to-be-indexed results from the server. Sets
+# LABRAT_UNINDEXED_LIST to the path of a file containing all
+# the results that need to be added to the index.
+download_unindexed_results() {
+  local bucket="$(get_gs_bucket)"
+  local soupfile=$(mktemp)
+  local unindexed
+
+  LABRAT_UNINDEXED_LIST=
+  if [ -f "${LABRAT_INDEX_BEFORE}" ]; then
+    # Add the already indexed files twice so they never show up.
+    "${_labrat_top}"/lib/labrat_util.py \
+      list-index-files "${LABRAT_INDEX_BEFORE}" >>"${soupfile}"
+
+    "${_labrat_top}"/lib/labrat_util.py \
+      list-index-files "${LABRAT_INDEX_BEFORE}" >>"${soupfile}"
+  fi
+
+  # Add the available results.
+  gsutil ls "${bucket}/results/*" | sed "s|${bucket}/results/||" >>"${soupfile}"
+
+  sort "${soupfile}" | uniq -u > "${soupfile}.2"
+  echo "ALL RESULTS:"
+  cat "${soupfile}"
+  echo
+  echo "MISSING RESULTS:"
+  cat "${soupfile}.2"
+  mv "${soupfile}.2" "${soupfile}"
+  unindexed="$(cat ${soupfile})"
+  LABRAT_UNINDEXED_LIST="${soupfile}"
+
+  if [ -z "${unindexed}" ]; then
+    rm -f "${soupfile}"
+    unset LABRAT_UNINDEXED_LIST
+    echo "No new results were found, you're up to date!"
+    return 0
+  fi
+
+  # Download the missing files.
+  for f in ${unindexed}; do
+    [ -f "${LABRAT_RESULTS_CACHE}/${f}" ] && continue
+    echo "Downloading ${f}"
+    gsutil cp "${bucket}/results/${f}" "${LABRAT_RESULTS_CACHE}/${f}"
+  done
+  return 0
+}
+
+# Build and upload a new index file.
+build_and_upload_index() {
+  local bucket="$(get_gs_bucket)"
+  local newindex_name="$(date +%y%m%d-%H%M%S)-index.json"
+  local newindex_path="${LABRAT_INDEX_CACHE}/${newindex_name}"
+
+  "${_labrat_top}"/lib/labrat_util.py \
+    build-index "${LABRAT_INDEX_BEFORE}" \
+                "${LABRAT_UNINDEXED_LIST}" "${newindex_path}" \
+                --results-dir="${LABRAT_RESULTS_CACHE}"
+
+  gsutil cp "${newindex_path}" "${bucket}/index/${newindex_name}"
+
+  # Delete the temporary unindexed file set.
+  rm -f "${LABRAT_UNINDEXED_LIST}"
 }
