@@ -1,5 +1,5 @@
 {
-        "gs_bucket": "gs://find-your-own-bucket/labrat",
+        "gs_bucket": "gs://chromeos-moblab-intel-small-core-dev/labrat-demo-room/",
         "machines": [
                 {
                         "ip": "10.0.6.158",
