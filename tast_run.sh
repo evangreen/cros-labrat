@@ -1,6 +1,6 @@
 #!/bin/bash
 # Copyright 2020 The Chromium OS Authors
-# Wrap test_that, generate metadata, and upload results.
+# Wrap tast run, generate metadata, and upload results.
 
 set -e
 
@@ -8,16 +8,16 @@ _labrat_top="$(dirname "$0")"
 . "${_labrat_top}/lib/helper_functions.sh"
 
 USAGE="$0 [options]
-Run test_that on a single remote, generate metadata, and upload results.
+Run tast run on a single remote, generate metadata, and upload results.
 Options are:
   --remote=111.222.33.44 -- Specify the remote IP. This script will pass the
-    remote onto test_that, you don't need to specify it twice.
+    remote onto tast run, you don't need to specify it twice.
   --config=path_or_name -- Specify either absolute path to the .json config
     containing GS bucket, or just the name, in which case it will be
     loaded from configs/<name>.json. If unspecified, configs/default.json will
     be loaded if it exists.
 Example:
-./test_that.sh --remote=192.168.1.120 suite:bvt-inline
+./tast_run.sh --remote=192.168.1.120 '("name:video.*")'
 "
 
 while [ "$#" -gt 0 ]; do
@@ -50,5 +50,5 @@ if [ "$#" -eq 0 ]; then
 fi
 
 load_config "$CONFIG"
-run_test_that "${REMOTE}" "$@"
-sweep_test_that_results
+run_tast_run "${REMOTE}" "$@"
+sweep_tast_results

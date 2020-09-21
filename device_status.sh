@@ -32,8 +32,8 @@ for arg in "$@"; do
   esac
 done
 
-FW_VERSION="$(detect_fw_version)"
-OS_VERSION="$(detect_os_version)"
+FW_VERSION="$(detect_fw_version ${REMOTE})"
+OS_VERSION="$(detect_os_version ${REMOTE})"
 
 printf "Remote: %s\n" "${REMOTE}"
 printf "\tOS: %s\n" "${OS_VERSION}"

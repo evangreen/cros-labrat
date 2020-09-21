@@ -155,7 +155,7 @@ detect_board () {
 detect_variant () {
   local remote="$1"
 
-  do_ssh "${remote}" mosys platform model
+  do_ssh "${remote}" "crossystem | sed -n 's/^fwid[ ]*= Google_\([^.]*\).*/\1/p' | tr '[:upper:]' '[:lower:]'"
 }
 
 # Update the firmware on the DUT using SSH.
@@ -317,6 +317,23 @@ run_test_that () {
   end_test
 }
 
+# Run tast run, teeing the output to a file.
+# Takes the remote as the first arg, then the extra args to pass to test_that.
+run_tast_run () {
+  local remote="$1"
+
+  shift
+
+  # Save the output. Don't start it with LABRAT_TEST_ since we don't want it
+  # saved in the results dict.
+  LABRAT_OUTPUT="$(tempfile -p lbrat)"
+  start_test "${remote}" tast run "${remote}" "$@"
+  tast run "${remote}" "$@" 2>&1 | tee "${LABRAT_OUTPUT}" | \
+    cat -n | sed "s/^/${remote} /" || true
+
+  end_test
+}
+
 # Based on stdout from running test_that, find the results directory.
 find_test_that_results () {
   local stdout_path="$1"
@@ -326,9 +343,28 @@ find_test_that_results () {
     "${stdout_path}"
 }
 
+# Based on stdout from running tast run, find the results directory.
+find_tast_run_results () {
+  local stdout_path="$1"
+
+  sed -n \
+    's/.*Results saved to \(.*\)/\1/p' \
+    "${stdout_path}"
+}
+
 # Given a path to the /tmp/test_that_results_... directory, create a metadata
 # file.
 create_test_that_metadata () {
+  results_dir="$1"
+  metadata_file="$1/labrat.json"
+
+  "${_labrat_top}"/lib/labrat_util.py create-metadata \
+    "${results_dir}" "${metadata_file}"
+}
+
+# Given a path to the /tmp/tast/results/YYYYMMDD-HHmmss directory, create a metadata
+# file.
+create_tast_run_metadata () {
   results_dir="$1"
   metadata_file="$1/labrat.json"
 
@@ -345,19 +381,32 @@ archive_results () {
   local bucket="$(get_gs_bucket)"
 
   mkdir -p "${LABRAT_RESULTS_CACHE}"
-  zip -r "${archive_path}" "${results_dir}"
+  zip -q -r "${archive_path}" "${results_dir}"
   gsutil cp "${archive_path}" "${bucket}/results/"
 }
 
 # Find the results, create the test metadata, upload the results.
-sweep_results() {
+sweep_test_that_results() {
   local results_dir="$(find_test_that_results "${LABRAT_OUTPUT}")"
 
   if [ ! -d "${results_dir}" ]; then
-    echo "Error: Could not find results directory. Check the output: ${LABRAT_OUTPUT}."
+    echo "Error: Could not find test_that results. Check the output: ${LABRAT_OUTPUT}."
     return 1
   fi
 
   create_test_that_metadata "${results_dir}"
+  archive_results "${results_dir}"
+}
+
+# Find the results, create the test metadata, upload the results.
+sweep_tast_results() {
+  local results_dir="$(find_tast_run_results "${LABRAT_OUTPUT}")"
+
+  if [ ! -d "${results_dir}" ]; then
+    echo "Error: Could not find tast results. Check the output: ${LABRAT_OUTPUT}."
+    return 1
+  fi
+
+  create_tast_run_metadata "${results_dir}"
   archive_results "${results_dir}"
 }
