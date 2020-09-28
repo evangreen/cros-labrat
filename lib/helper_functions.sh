@@ -419,6 +419,13 @@ get_latest_index() {
   gsutil ls "${bucket}/index/*" | sort | tail -n1
 }
 
+# print the latest local index.
+get_latest_local_index() {
+  local latest="$(ls "${LABRAT_INDEX_CACHE}" | tail -n1)"
+
+  [ -n "${latest}" ] && echo "${LABRAT_INDEX_CACHE}/${latest}"
+}
+
 # Downloads the latest index. Sets LABRAT_INDEX_BEFORE
 # to the local path of the latest index on the server.
 download_latest_index() {

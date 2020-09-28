@@ -18,10 +18,12 @@ Options are:
     loaded from configs/<name>.json. If unspecified, configs/default.json will
     be loaded if it exists.
   --no-rebuild -- Just download the latest index, but don't update it.
+  --rebuild -- Fully rebuild the index from scratch.
 Example:
 ./update_index.sh --config=sample
 "
-rebuild=yes
+build_index=yes
+rebuild_from_scratch=no
 
 while [ "$#" -gt 0 ]; do
   arg="$1"
@@ -32,7 +34,12 @@ while [ "$#" -gt 0 ]; do
     ;;
 
   --no-rebuild)
-    rebuild=no
+    build_index=no
+    shift
+    ;;
+
+  --rebuild)
+    rebuild_from_scratch=yes
     shift
     ;;
 
@@ -54,12 +61,16 @@ fi
 
 load_config "$CONFIG"
 download_latest_index
-if [ "${rebuild}" = "no" ]; then
+if [ "${build_index}" = "no" ]; then
   echo "Latest index: ${LABRAT_INDEX_BEFORE}"
   exit 0
 fi
 
 download_unindexed_results
+if [ "${rebuild_from_scratch}" = yes ]; then
+  LABRAT_INDEX_BEFORE=
+fi
+
 if [ -n "${LABRAT_UNINDEXED_LIST}" ]; then
   build_and_upload_index
 fi

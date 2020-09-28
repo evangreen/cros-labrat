@@ -167,6 +167,8 @@ def parse_test_results(results_dir, results):
 
   return 0
 
+# Create the metadata that goes in each uploaded test run.
+# Gather the dict from environment keys that start with LABRAT_TEST_*
 def create_metadata(results_dir, output_path):
   results = {}
 
@@ -194,6 +196,7 @@ empty_index = {
   "results": []
 }
 
+# Helper: List all the files covered in an index.
 def print_index_files(index_path):
   index = empty_index
   if index_path is None or index_path == "":
@@ -211,7 +214,9 @@ copy_keys = ["user", "board", "hwid", "variant",
              "os", "fw", "command", "remote",
              "starttime", "endtime"]
 
-def add_result_to_index(index, path):
+# Grab a metadata file from a previous test run and add
+# it to the rubber band ball.
+def add_result_to_index(index, path, file_name):
   try:
     metadata = {}
     with zipfile.ZipFile(path, 'r') as z:
@@ -227,6 +232,7 @@ def add_result_to_index(index, path):
       for key in copy_keys:
         r[key] = metadata[key]
 
+      r['file'] = file_name
       new_results.append(r)
 
     index['files'].append(os.path.basename(path))
@@ -237,6 +243,7 @@ def add_result_to_index(index, path):
 
   return
 
+# Rebuild a new index file.
 def build_new_index(old_path, list_path, out_path, results_dir):
   index = empty_index
   if old_path is not None and old_path != "":
@@ -245,16 +252,163 @@ def build_new_index(old_path, list_path, out_path, results_dir):
 
   with open(list_path, 'r') as f:
     for line in f:
+      line = line.strip()
       if results_dir is not None:
-        path = "%s/%s" % (results_dir, line.strip())
+        path = "%s/%s" % (results_dir, line)
 
       else:
-        path = line.strip()
+        path = line
 
-      add_result_to_index(index, path)
+      add_result_to_index(index, path, line)
 
   with open(out_path, 'w') as f:
     json.dump(index, f, indent=1)
+
+  return 0
+
+# Convert the argparse filter list like ["result=PASS"] into a filter dict
+# like {'result': 'PASS'}
+def create_filter(filter):
+  filter_dict = {}
+  if filter is None:
+    return filter
+
+  for element in filter:
+    keyvalue = element.split('=', 1)
+    filter_dict[keyvalue[0]] = keyvalue[1]
+
+  return filter_dict
+
+# Filter the index to contain elements that match the filter.
+def filter_results(index, filter):
+  results = []
+
+  if filter is None:
+    return index
+
+  for result in index:
+    match = True
+    for key in filter:
+      if result[key] != filter[key]:
+        match = False
+        break
+
+    if match:
+      results.append(result)
+
+  return results
+
+# Squash results such that only the latest run per-test is shown.
+def squash_by_name(index):
+  sorted_index = sorted(index, key = lambda i: i['endtime'])
+  squashed_index = []
+  latest_name = {}
+
+  sorted_index.reverse()
+  for r in sorted_index:
+    key = '%s+%s' % (r['name'], r['hwid'])
+    latest = latest_name.get(key)
+    if latest is None:
+      squashed_index.append(r)
+      latest_name[key] = r
+
+  squashed_index.reverse()
+  return squashed_index
+
+default_columns = ['starttime', 'result', 'name', 'variant', 'os']
+
+def print_results_table(index, columns):
+  lengths = {}
+  istty = os.isatty(1)
+
+  for column in columns:
+    lengths[column] = len(column)
+
+  index = sorted(index, key = lambda i: i['endtime'])
+  for result in index:
+    for column in columns:
+      try:
+        value = result[column]
+        if column == 'starttime' or column == 'endtime':
+          value = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(value))
+
+        value = str(value)
+
+        # Expand the column size if needed. Don't do it for notes,
+        # It just looks ridiculous.
+        if column != 'notes' and len(value) > lengths[column]:
+          lengths[column] = len(value)
+
+        if istty and column == 'result':
+          color = '37'
+          if value == 'PASS':
+            color = '32'
+
+          elif value == 'FAIL':
+            color = '31'
+
+          value = "\x1b[%sm%s\x1b[0m" % (color, value)
+
+      except (KeyError, ValueError):
+        value = '-'
+
+      result[column] = value
+
+  # Now print the table.
+  line = []
+  for column in columns:
+    line.append(column.ljust(lengths[column]))
+
+  # Account for all the escape characters we use to color the result
+  try:
+    if istty:
+      lengths['result'] += 9
+
+  except KeyError:
+    pass
+
+  line = " ".join(line)
+  print(line)
+  print("-" * len(line))
+  for result in index:
+    line = []
+    for column in columns:
+      line.append(result[column].ljust(lengths[column]))
+
+    print(" ".join(line))
+
+  return 0
+
+# Process an index and print it.
+def show_index_results(index_path, args):
+  index = None
+  with open(index_path, 'r') as f:
+    index = json.load(f)
+
+  # Filter the results
+  results = filter_results(index['results'], create_filter(args.filter))
+
+  # Squash into latest for each test name if desired
+  if args.latest:
+    results = squash_by_name(results)
+
+  if args.count:
+    print(len(results))
+    return 0
+
+  if args.json:
+    # Columns don't currently apply to JSON, you probably wanted everything.
+    print(json.dumps(results, indent=1))
+
+  else:
+    columns = args.columns
+    if columns is None:
+      columns = default_columns
+
+    else:
+      columns = columns.split(",")
+
+    print_results_table(results, columns)
 
   return 0
 
@@ -273,6 +427,7 @@ Commands are:
   create-metadata -- Create a labrat test result summary.
   list-index-files -- Show the files covered by an index.
   build-index -- Build a new index file.
+  show-results -- Print out results.
 ''')
     parser.add_argument("command", help="The subcommand to run")
     args = parser.parse_args(sys.argv[1:2])
@@ -364,6 +519,33 @@ Commands are:
                            args.file_list,
                            args.output,
                            args.results_dir)
+
+  def show_results(self):
+    parser = argparse.ArgumentParser(
+      description='Print out formatted or filtered results from an index file')
+
+    parser.add_argument("index_path",
+                        help="Path to the index file to load")
+
+    parser.add_argument("--filter",
+              help="Filter to only include results that match the given key.",
+              action='append')
+
+    parser.add_argument("--json",
+                        help="Print the results in JSON form",
+                        action='store_true')
+
+    parser.add_argument("--latest",
+                        help="Print only the latest instance of each test per-board",
+                        action='store_true')
+
+    parser.add_argument("--count",
+                        help="Print only the count of matching results",
+                        action='store_true')
+
+    parser.add_argument("--columns", help="Define which columns to display")
+    args = parser.parse_args(sys.argv[2:])
+    return show_index_results(args.index_path, args)
 
 if __name__ == '__main__':
     LabratUtilityLibrary()
