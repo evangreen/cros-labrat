@@ -37,3 +37,30 @@ Update the OS to the latest from GoldenEye on all devices listed in configs/defa
 ```
 ./for_all_duts.sh ./update_os.sh
 ```
+
+Run some tast tests, or maybe some autotests, and upload the results:
+```
+./tast_run.sh --remote=10.0.6.130 '("name:video.*")'
+./test_that.sh --remote=10.0.6.131 suite:bvt-cq
+```
+
+Gather all the results together, and show per-board any tests whose most recent run has failed.
+```
+./update_index.sh
+./show_results.sh --latest --result=FAIL
+```
+
+Show all test results for a specific test on a given DUT.
+```
+./show_results.sh --name=video.Capability --filter=hwid=98:af:65:60:bb:70
+```
+
+Run all the test suites listed in configs/sanity.json on a single DUT:
+```
+./test_one_dut.sh --config=sanity --remote=10.0.6.111
+```
+
+Run all test suites on all DUTs listed in configs/sanity.json:
+```
+./test_all_duts.sh --config=sanity
+```

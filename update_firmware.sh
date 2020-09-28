@@ -21,8 +21,15 @@ Options are:
     build by default.
   --channel=$CHANNEL -- Specify the channel to use.
   --remote=111.222.33.44 -- Specify the remote IP.
+  --reboot -- Reboot the machine after updating firmware. You can skip this
+    if you're also about to update the OS, otherwise you should add this.
+  --cold-reboot -- Cold reboot the machine after updating firmware. Usually
+    not needed.
   --print -- Just print the (second) latest number.
 "
+
+want_reboot=no
+want_cold_reboot=no
 
 for arg in "$@"; do
   case $arg in
@@ -44,6 +51,15 @@ for arg in "$@"; do
 
   --remote=*)
     REMOTE="${arg#*=}"
+    ;;
+
+  --reboot)
+    want_reboot=yes
+    ;;
+
+  --cold-reboot)
+    want_reboot=yes
+    want_cold_reboot=yes
     ;;
 
   --print)
@@ -82,3 +98,6 @@ if [ -z "${DOWNLOADED_FIRMWARE_DIR}" ]; then
 fi
 
 update_firmware "${REMOTE}" "${DOWNLOADED_FIRMWARE_DIR}/${FW_NAME}"
+if [ "${want_reboot}" = yes ]; then
+  reboot_dut "${REMOTE}" "${want_cold_reboot}"
+fi

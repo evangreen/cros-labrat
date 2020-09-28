@@ -74,6 +74,24 @@ def get_dut_sh(config_path, index):
   print(result)
   return 0
 
+def list_tests(config_path, name):
+  config = load_config(config_path)
+  try:
+    tests = config[name]
+    for element in tests:
+      print(element)
+
+  except KeyError:
+    pass
+
+  return 0
+
+def list_tasts(config_path):
+  return list_tests(config_path, 'tast')
+
+def list_autotests(config_path):
+  return list_tests(config_path, 'autotest')
+
 def parse_autotest_results(resultfile, results):
   tests = []
   t = None
@@ -424,6 +442,8 @@ Commands are:
   get-gs-bucket -- Returns the gs:// path labrat should use.
   get-dut-count -- Returns the number of machines in the config.
   get-dut-sh -- Returns shell code describing attributes of a machine.
+  get-tasts -- Return a list of tast tests in the given config
+  get-autotests -- Return a list of autotests in the given config.
   create-metadata -- Create a labrat test result summary.
   list-index-files -- Show the files covered by an index.
   build-index -- Build a new index file.
@@ -481,6 +501,22 @@ Commands are:
     parser.add_argument("index", help="index into the list of machines to get", type=int)
     args = parser.parse_args(sys.argv[2:])
     return get_dut_sh(args.config, args.index)
+
+  def get_tasts(self):
+    parser = argparse.ArgumentParser(
+      description='Print the set of tast tests in a config')
+
+    parser.add_argument("--config", help="Path to the config.json")
+    args = parser.parse_args(sys.argv[2:])
+    return list_tasts(args.config)
+
+  def get_autotests(self):
+    parser = argparse.ArgumentParser(
+      description='Print the set of autotest tests in a config')
+
+    parser.add_argument("--config", help="Path to the config.json")
+    args = parser.parse_args(sys.argv[2:])
+    return list_autotests(args.config)
 
   def create_metadata(self):
     parser = argparse.ArgumentParser(

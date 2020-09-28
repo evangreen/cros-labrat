@@ -178,6 +178,37 @@ update_os () {
   cros flash "${remote}" "${image_path}"
 }
 
+# Reboot the DUT and wait for it to come back.
+# The first argument is the IP of the DUT. The second argument can be
+# "yes" to perform a cold reboot rather than warm.
+reboot_dut () {
+  local remote="$1"
+  local cold="$2"
+
+  echo "Rebooting ${remote}"
+  if [ "${cold}" = yes ]; then
+    do_ssh "${remote}" "sync && ectool reboot_ec cold" &
+
+  else
+    do_ssh "${remote}" reboot
+  fi
+
+  sleep 15
+  local try=0
+  local trycount=10
+  while [ "${try}" -lt "${trycount}" ]; do
+    if detect_fw_version "${remote}"; then
+      break
+    fi
+
+    sleep 10
+    try="$((try+1))"
+  done
+
+  # Evaluate success or failure based on try count.
+  [ "${try}" -lt "${trycount}" ]
+}
+
 # Load the config file by name or path. Sets LABRAT_CONFIG
 # to the path of the config file.
 load_config () {
@@ -237,6 +268,16 @@ get_gs_bucket () {
 get_dut_config () {
   index="$1"
   eval "$(do_labrat_config get-dut-sh $1)"
+}
+
+# Get the list of tast tests in a config
+get_tasts () {
+  do_labrat_config get-tasts
+}
+
+# Get the list of autotest tests in a config
+get_autotests () {
+  do_labrat_config get-autotests
 }
 
 # Who is this person running the test.
