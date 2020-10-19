@@ -10,6 +10,7 @@ _labrat_top="$(dirname "$0")"
 : "${CHANNEL:=dev-channel}"
 
 print_only=no
+download_only=no
 
 USAGE="$0 [options]
 Download and update OS on a single running DUT via SSH.
@@ -20,6 +21,7 @@ Options are:
   --channel=$CHANNEL -- Specify the channel to use.
   --remote=111.222.33.44 -- Specify the remote IP.
   --print -- Just print the (second) latest number.
+  --download-only -- Just download the image, don't flash anywhere.
 "
 
 for arg in "$@"; do
@@ -48,6 +50,10 @@ for arg in "$@"; do
     print_only=yes
     ;;
 
+  --download-only)
+    download_only=yes
+    ;;
+
   --help)
     echo "$USAGE"
     exit 1
@@ -64,7 +70,7 @@ if [ "${print_only}" = yes ]; then
   exit 0
 fi
 
-if [ -z "${REMOTE}" ]; then
+if [ -z "${REMOTE}" -a "${download_only}" = "no" ]; then
   echo "Error: --remote must be specified."
   exit 1
 fi
@@ -76,6 +82,10 @@ download_test_image "${CHANNEL}" "${BOARD}" "${BUILDNUM}"
 if [ -z "${DOWNLOADED_IMAGE_FILE}" ]; then
   echo "Error downloading image"
   exit 1
+fi
+
+if [ "${download_only}" = "yes" ]; then
+  exit 0
 fi
 
 update_os "${REMOTE}" "${DOWNLOADED_IMAGE_FILE}"
