@@ -9,8 +9,10 @@ _labrat_top="$(dirname "$0")"
 
 : ${CONFIG:=default}
 
-USAGE="$0 [options]
-Set up a tmux window
+USAGE="$0 [options] <dut_name>
+Set up a tmux window with servod, EC console, CPU console, and some chroots.
+dut_name specifies a DUT with the corresponding 'name' in the selected
+config.json.
 Options are:
   --config=path_or_name -- Specify either absolute path to the .json config
     containing the DUTs to run on, or just the name, in which case it will be
@@ -38,27 +40,49 @@ for arg in "$@"; do
     ;;
 
   *)
-    echo "Unknown argument: $arg"
+    if [ -n "${DEVICE_NAME}" ]; then
+      echo "Expected only one argument: the device name."
+      exit 1
+    fi
+
+    DEVICE_NAME="${arg}"
     ;;
   esac
 done
 
-load_config "$CONFIG"
+if [ -z "${DEVICE_NAME}" ]; then
+  echo "Error: Please specify a device name from ${CONFIG}".
+  exit 1
+fi
 
-DEVICE_NAME="desktest"
-export CROS_DIRECTORY=~/cros
-kerneldir="${CROS_DIRECTORY}/src/third_party/kernel/v5.4"
-export SERVO_PORT="9998"
-export SERVO_SERIAL="C1903140033"
-CCD_SERIAL="05823034-95984203"
-export BOARD="dedede"
+load_config "$CONFIG"
+DUT_name=
+DUT_kernel=5.4
+get_dut_config "--by=name=${DEVICE_NAME}"
+if [ -z "${DUT_name}" ]; then
+  echo "Found no DUT named: ${DEVICE_NAME}"
+  exit 1
+fi
+
+if [ -z "${DUT_servo_serial}" -o -z "${DUT_servo_port}" ]; then
+  echo "Please set servo_serial and servo_port config entries for ${DUT=name}."
+  exit 1
+fi
+
+# For servo v2, if ccd_serial is unset, use servo_serial.
+[ -z "${DUT_ccd_serial}" ] && DUT_ccd_serial="${DUT_servo_serial}"
+
+# I guess this should come from a global config.
+CROS_DIRECTORY=~/cros
+kerneldir="${CROS_DIRECTORY}/src/third_party/kernel/v${DUT_kernel}"
 
 # Horrible hack: let me sudo without hassle so I can enter the chroot.
 # This gets reverted by corp, but works for the moment I need it.
+# Use at your own peril!
 sudo su -c "echo '$USER ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers"
 
 # Clean up any old session
-tmux kill-session -t desktest || true
+tmux kill-session -t "${DEVICE_NAME}" || true
 
 # Fire up a new tmux session.
 tmux new-session -t "${DEVICE_NAME}" -s "${DEVICE_NAME}" -d
@@ -67,20 +91,20 @@ tmux send-keys -t "${DEVICE_NAME}:1" "export k=${kerneldir}" C-m
 # Create and set up the split window with servod and EC
 tmux new-window -t "${DEVICE_NAME}:2" -e k="${kerneldir}"
 tmux send-keys -t "${DEVICE_NAME}:2" "cros_sdk --nouse-image --no-ns-pid" C-m \
-  "sudo servod --board=${BOARD} --port=${SERVO_PORT} \
-   --serial=${SERVO_SERIAL}" C-m
+  "sudo servod --board=${DUT_board} --port=${DUT_servo_port} \
+   --serial=${DUT_servo_serial}" C-m
 
 tmux split-window -v -t "${DEVICE_NAME}:2" -e k="${kerneldir}"
 tmux send-keys -t "${DEVICE_NAME}:2.1" \
   "while true; do \
-  ~/trunk/src/platform/dev/contrib/dut-console -c ec --port=${SERVO_PORT}; \
+  ~/trunk/src/platform/dev/contrib/dut-console -c ec --port=${DUT_servo_port}; \
   sleep 5; done" C-m
 
 # Create and set up the AP UART window
 tmux new-window -t "${DEVICE_NAME}:3" -e k="${kerneldir}"
 tmux send-keys -t "${DEVICE_NAME}:3" \
   "while true; do \
-  ~/trunk/src/platform/dev/contrib/dut-console -c cpu --port=${SERVO_PORT}; \
+  ~/trunk/src/platform/dev/contrib/dut-console -c cpu --port=${DUT_servo_port}; \
   sleep 5; done" C-m
 
 # Set up a couple shells inside the chroot
@@ -88,9 +112,9 @@ for window in "${DEVICE_NAME}:4" "${DEVICE_NAME}:5"; do
   tmux new-window -t "${window}" -c "${CROS_DIRECTORY}"
   tmux send-keys -t "${window}" "cros_sdk --nouse-image --no-ns-pid" C-m
   tmux send-keys -t "${window}" \
-    "export SERVO_PORT=-p${SERVO_PORT} PORT_SERVO=-p${SERVO_PORT} \
-     SERVO_SERIAL=,serial=${CCD_SERIAL} SERIAL_SERVO=,serial=${CCD_SERIAL} \
-     k=${kerneldir}" C-m
+    "export SERVO_PORT=-p${DUT_servo_port} PORT_SERVO=-p${DUT_servo_port} \
+     SERVO_SERIAL=,serial=${DUT_ccd_serial} SERIAL_SERVO=,serial=${DUT_ccd_serial} \
+     k=${kerneldir} BOARD=${DUT_board} IP=${DUT_ip}" C-m
 
 done
 

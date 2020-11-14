@@ -59,17 +59,30 @@ def get_dut_count(config_path):
   print("%d" % len(config['machines']))
   return 0
 
-def get_dut_sh(config_path, index):
+def get_dut_sh(config_path, index, by):
   config = load_config(config_path)
   result = ''
-  if index > len(config['machines']):
-    return 1
+  if index is not None:
+    if index > len(config['machines']):
+      return 1
 
-  machine = config['machines'][index]
+    machine = config['machines'][index]
+
+  elif by is not None:
+    key, value = by.split('=', 1)
+    for m in config['machines']:
+      try:
+        if m[key] == value:
+          machine = m
+          break
+
+      except KeyError:
+        pass
+
   for key in machine.keys():
     # Never run this over a config file you didn't write yourself.
     result += 'DUT_%s="%s"\n' % \
-              (shlex.quote(key), shlex.quote(machine[key]))
+              (shlex.quote(key), shlex.quote(str(machine[key])))
 
   print(result)
   return 0
@@ -498,9 +511,15 @@ Commands are:
       description='Get DUT attributes by index in the form of DUT_<var>=<value> shell vars.')
 
     parser.add_argument("--config", help="Path to the config.json")
-    parser.add_argument("index", help="index into the list of machines to get", type=int)
+    parser.add_argument("--index",
+                        help="index into the list of machines to get",
+                        type=int)
+
+    parser.add_argument("--by",
+                        help="Get the DUT by a key (ie --by=name=sunshine)")
+
     args = parser.parse_args(sys.argv[2:])
-    return get_dut_sh(args.config, args.index)
+    return get_dut_sh(args.config, args.index, args.by)
 
   def get_tasts(self):
     parser = argparse.ArgumentParser(

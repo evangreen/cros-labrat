@@ -67,7 +67,7 @@ if [ -z "$REMOTE" ]; then
   load_config "$CONFIG"
   dut_count="$(get_dut_count)"
   while [ "${count}" -lt "${dut_count}" ]; do
-    get_dut_config "${count}"
+    get_dut_config "--index=${count}"
     "$command" --remote="${DUT_ip}" "$@" &
     pids="${pids} $!"
     : $((count+=1))

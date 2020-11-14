@@ -266,7 +266,6 @@ get_gs_bucket () {
 # Load dict keys from a DUT at the given index into variables like
 # DUT_<key>=<value>
 get_dut_config () {
-  index="$1"
   eval "$(do_labrat_config get-dut-sh $1)"
 }
 
