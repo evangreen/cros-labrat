@@ -57,6 +57,8 @@ download_firmware () {
   if [ -f "${firmware_archive}" ]; then
     DOWNLOADED_FIRMWARE_DIR="${firmware_dir}"
     echo "Skipping download: ${firmware_archive} exists"
+    # Touch the files so they're kept fresh and away from clean_old_files.sh.
+    touch "${firmware_dir}"/*
     return 0
   fi
 
@@ -86,6 +88,8 @@ download_test_image () {
   if [ -f "${dest_file}" ]; then
     DOWNLOADED_IMAGE_FILE="${dest_file}"
     echo "Skipping download: ${dest_file} exists"
+    # Touch the file so it's kept fresh and away from clean_old_files.sh.
+    touch "${dest_file}"
     return 0
   fi
 
