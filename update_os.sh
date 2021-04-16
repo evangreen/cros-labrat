@@ -9,6 +9,7 @@ _labrat_top="$(dirname "$0")"
 
 : "${CHANNEL:=dev-channel}"
 
+autologin=no
 print_only=no
 download_only=no
 
@@ -22,10 +23,15 @@ Options are:
   --remote=111.222.33.44 -- Specify the remote IP.
   --print -- Just print the (second) latest number.
   --download-only -- Just download the image, don't flash anywhere.
+  --autologin -- Run the autologin script after updating.
 "
 
 for arg in "$@"; do
   case $arg in
+  --autologin)
+    autologin=yes
+    ;;
+
   --board=*)
     BOARD="${arg#*=}"
     ;;
@@ -89,3 +95,7 @@ if [ "${download_only}" = "yes" ]; then
 fi
 
 update_os "${REMOTE}" "${DOWNLOADED_IMAGE_FILE}"
+
+if [ "${autologin}" = "yes" ]; then
+  "${_labrat_top}/autologin.sh" --remote="${REMOTE}" --no-creds
+fi

@@ -46,6 +46,23 @@ def load_config(config_path):
 
   return None
 
+def get_autologin_credentials(config_path):
+  config = load_config(config_path)
+  result = ''
+  username = config.get('autologin_email')
+  if username is None:
+    username = ''
+
+  password = config.get('autologin_password')
+  if password is None:
+    password = ''
+
+  result = 'autologin_email=%s\nautologin_password=%s\n' % \
+    (shlex.quote(username), shlex.quote(password))
+
+  print(result)
+  return 0
+
 def get_gs_bucket(config_path):
   config = load_config(config_path)
   bucket = config['gs_bucket']
@@ -452,6 +469,7 @@ class LabratUtilityLibrary:
 Commands are:
   lock - Acquire a lock file.
   unlock - Release a lock file.
+  get-autologin-creds -- Return the autologin credentials if present.
   get-gs-bucket -- Returns the gs:// path labrat should use.
   get-dut-count -- Returns the number of machines in the config.
   get-dut-sh -- Returns shell code describing attributes of a machine.
@@ -489,6 +507,16 @@ Commands are:
 
     args = parser.parse_args(sys.argv[2:])
     return unlock_file(args.path)
+
+  def get_autologin_creds(self):
+    parser = argparse.ArgumentParser(
+      description='Get autologin credentials autologin_email and '
+        'autologin_password, and print shell code for saving them '
+        'to environment variables.')
+
+    parser.add_argument("--config", help="Path to the config.json")
+    args = parser.parse_args(sys.argv[2:])
+    return get_autologin_credentials(args.config)
 
   def get_gs_bucket(self):
     parser = argparse.ArgumentParser(

@@ -11,11 +11,13 @@ USAGE="$0 [options]
 Reboot over and over again, watching for crashes in console-ramoops:
   --remote=111.222.33.44 -- Specify the remote IP.
   --count -- How many iterations to do. Default is 1000.
+  --cold -- Do cold reboots.
   --delay -- Delay between iterations. Default 3 seconds.
 "
 
 COUNT=1000
 DELAY=3
+COLD=
 
 while [ "$#" -gt 0 ]; do
   arg="$1"
@@ -32,6 +34,11 @@ while [ "$#" -gt 0 ]; do
 
   --delay=*)
     DELAY="${arg#*=}"
+    shift
+    ;;
+
+  --cold)
+    COLD=yes
     shift
     ;;
 
@@ -60,7 +67,7 @@ failures=0
 while [ "${index}" -lt "${COUNT}" ]; do
   echo
   echo "$(date): Iteration ${index}"
-  reboot_dut "${REMOTE}"
+  reboot_dut "${REMOTE}" "${COLD}"
 
   # Get warnings or errors.
   if do_ssh "${REMOTE}" \

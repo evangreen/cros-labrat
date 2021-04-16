@@ -25,11 +25,13 @@ Options are:
     if you're also about to update the OS, otherwise you should add this.
   --cold-reboot -- Cold reboot the machine after updating firmware. Usually
     not needed.
+  --download-only -- Download the firmware but don't install it anywhere.
   --print -- Just print the (second) latest number.
 "
 
 want_reboot=no
 want_cold_reboot=no
+download_only=no
 
 for arg in "$@"; do
   case $arg in
@@ -62,6 +64,10 @@ for arg in "$@"; do
     want_cold_reboot=yes
     ;;
 
+  --download-only)
+    download_only=yes
+    ;;
+
   --print)
     print_only=yes
     ;;
@@ -82,16 +88,20 @@ if [ "${print_only}" = yes ]; then
   exit 0
 fi
 
-if [ -z "${REMOTE}" ]; then
+if [ -z "${REMOTE}" -a "${download_only}" != "yes" ]; then
   echo "Error: --remote must be specified."
   exit 1
 fi
 
 [ -z "${BOARD}" ] && BOARD="$(detect_board ${REMOTE})"
+download_firmware "${CHANNEL}" "${BOARD}" "${BUILDNUM}"
+if [ "${download_only}" = "yes" ]; then
+  exit 0
+fi
+
 [ -z "${FW_NAME}" ] && FW_NAME="image-$(detect_variant ${REMOTE}).dev.bin"
 [ -z "${BUILDNUM}" ] && BUILDNUM="$(get_almost_latest_build_num "${CHANNEL}" "${BOARD}")"
 
-download_firmware "${CHANNEL}" "${BOARD}" "${BUILDNUM}"
 if [ -z "${DOWNLOADED_FIRMWARE_DIR}" ]; then
   echo "Error downloading firmware"
   exit 1

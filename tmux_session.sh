@@ -74,7 +74,7 @@ fi
 
 # I guess this should come from a global config.
 CROS_DIRECTORY=~/cros
-kerneldir="${CROS_DIRECTORY}/src/third_party/kernel/v${DUT_kernel}"
+kerneldir="${HOME}/trunk/src/third_party/kernel/v${DUT_kernel}"
 
 # Horrible hack: let me sudo without hassle so I can enter the chroot.
 # This gets reverted by corp, but works for the moment I need it.
@@ -99,6 +99,8 @@ tmux send-keys -t "${DEVICE_NAME}:2.1" \
   "while true; do \
   ~/trunk/src/platform/dev/contrib/dut-console -c ec --port=${DUT_servo_port}; \
   sleep 5; done" C-m
+
+tmux split-window -h -t "${DEVICE_NAME}:2.1" -e SERVO_PORT="-p${DUT_servo_port}"
 
 # Create and set up the AP UART window
 tmux new-window -t "${DEVICE_NAME}:3" -e k="${kerneldir}"

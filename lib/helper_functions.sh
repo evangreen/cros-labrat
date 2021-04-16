@@ -257,6 +257,12 @@ get_dut_count () {
   do_labrat_config get-dut-count
 }
 
+# populates autologin_email and autologin_password with
+# config values if supplied.
+get_autologin_creds() {
+  eval "$(do_labrat_config get-autologin-creds)"
+}
+
 # Returns the gs:// path to the shared bucket to use.
 # You must have write access to this bucket.
 get_gs_bucket () {
